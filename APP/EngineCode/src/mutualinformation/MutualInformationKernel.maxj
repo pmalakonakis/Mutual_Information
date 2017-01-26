@@ -1,0 +1,102 @@
+package mutualinformation;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+
+class CpuStreamKernel extends Kernel {
+
+	private static final DFEType type2 = dfeFloat(8, 24);
+	private static final DFEType type = dfeUInt(32);
+
+	protected CpuStreamKernel(KernelParameters parameters) {
+		super(parameters);
+
+		DFEVar N = io.scalarInput("N", type);
+		DFEVar count = control.count.simpleCounter(32,N	);
+
+		DFEVar read = (count<1);
+
+		DFEVar counts = control.count.simpleCounter(256);
+
+		DFEVar x = io.input("probx", type2);
+		DFEVar xy = io.input("probx_y", type2);
+		DFEVar y = io.input("proby", type2,read);
+
+		DFEVar x2 = x;
+		DFEVar xy2 = io.input("probx_y2", type2);
+		DFEVar y2 = io.input("proby2", type2,read);
+
+		DFEVar x3 = x;
+		DFEVar xy3 = io.input("probx_y3", type2);
+		DFEVar y3 = io.input("proby3", type2,read);
+
+
+		DFEVar m = io.scalarInput("m", type2);
+		DFEVar zero= constant.zero(type2);
+
+		DFEVar carriedSum = type2.newInstance(this); // sourceless stream
+		DFEVar sum = counts <13  ? 0.0 : carriedSum;
+		DFEVar mi = zero;
+
+
+		DFEVar mi2 = zero;
+		DFEVar mi3 = zero;
+
+		DFEVar a=  x>zero & xy>zero & y>zero ?((xy*m)/(x*y)):zero;
+		DFEVar a2=  x2>zero & y2>zero & xy2>zero ?((xy2*m)/(x2*y2)):zero;
+		DFEVar a3=  x3>zero & y3>zero & xy3>zero ?((xy3*m)/(x3*y3)):zero;
+
+///////////////////////////////////////////////////////////////////////////////////
+		//log2 approximation
+		DFEVar s = a.cast(dfeRawBits(32));
+		DFEVar s2 = s.cast(dfeUInt(32));
+		DFEVar mx = (a.cast(dfeRawBits(32)) & 0x007FFFFF) | 0x3f000000;
+		DFEVar mx1=mx.cast(type2);
+		DFEVar my=s2.cast(type2)*1.1920928955078125e-7f;
+		DFEVar log2x=my - 124.22551499f
+	    - 1.498030302f * mx1
+	    - 1.72587999f / (0.3520887068f + mx1);
+
+		DFEVar sc2 = a2.cast(dfeRawBits(32));
+		DFEVar s2c2 = sc2.cast(dfeUInt(32));
+		DFEVar mxc2 = (a2.cast(dfeRawBits(32)) & 0x007FFFFF) | 0x3f000000;
+		DFEVar mx1c2=mxc2.cast(type2);
+		DFEVar myc2=s2c2.cast(type2)*1.1920928955078125e-7f;
+		DFEVar log2x2=myc2 - 124.22551499f
+	    - 1.498030302f * mx1c2
+	    - 1.72587999f / (0.3520887068f + mx1c2);
+
+		DFEVar sc3 = a3.cast(dfeRawBits(32));
+		DFEVar s2c3 = sc3.cast(dfeUInt(32));
+		DFEVar mxc3 = (a3.cast(dfeRawBits(32)) & 0x007FFFFF) | 0x3f000000;
+		DFEVar mx1c3=mxc3.cast(type2);
+		DFEVar myc3=s2c3.cast(type2)*1.1920928955078125e-7f;
+		DFEVar log2x3=myc3 - 124.22551499f
+	    - 1.498030302f * mx1c3
+	    - 1.72587999f / (0.3520887068f + mx1c3);
+////////////////////////////////////////////////////////////////////////
+		DFEVar st;
+		st = log2x;
+
+		DFEVar st2;
+		st2 = log2x2;
+
+		DFEVar st3;
+		st3 = log2x3;
+
+		mi=  st*(xy/m);
+		mi2=  st2*(xy2/m);
+		mi3=  st3*(xy3/m);
+
+		DFEVar newSum = mi3+mi2 + mi + sum;
+
+		DFEVar newSumOffset = stream.offset(newSum, -13);
+		carriedSum <== newSumOffset;
+
+		io.output("s", sum, type2);
+
+	}
+
+}

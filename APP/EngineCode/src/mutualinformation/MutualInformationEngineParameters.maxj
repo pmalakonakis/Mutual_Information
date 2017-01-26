@@ -1,0 +1,10 @@
+package mutualinformation;
+
+import com.maxeler.maxcompiler.v2.build.EngineParameters;
+
+public class MutualInformationEngineParameters extends EngineParameters {
+
+	public MutualInformationEngineParameters(String[] args) {
+		super(args);
+	}
+}

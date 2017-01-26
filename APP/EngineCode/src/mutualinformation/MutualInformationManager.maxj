@@ -1,0 +1,68 @@
+package mutualinformation;
+
+import com.maxeler.maxcompiler.v2.managers.BuildConfig;
+import com.maxeler.maxcompiler.v2.managers.custom.CustomManager;
+import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
+import com.maxeler.maxcompiler.v2.managers.engine_interfaces.CPUTypes;
+import com.maxeler.maxcompiler.v2.managers.engine_interfaces.EngineInterface;
+import com.maxeler.maxcompiler.v2.managers.engine_interfaces.InterfaceParam;
+
+public class MutualInformationManager extends CustomManager {
+
+	private static final String s_kernelName = "CpuStreamKernel";
+
+	public MutualInformationManager(MutualInformationEngineParameters engineParameters) {
+		super(engineParameters);
+
+		KernelBlock block = addKernel(new CpuStreamKernel(makeKernelParameters(s_kernelName)));
+
+		for (String inputName: block.getAllInputs())
+			block.getInput(inputName).connect(addStreamFromCPU(inputName));
+		for (String outputName: block.getAllOutputs())
+			addStreamToCPU(outputName).connect(block.getOutput(outputName));
+
+		createSLiCinterface(modeDefault());
+
+		configBuild(engineParameters);
+	}
+
+	private static EngineInterface modeDefault() {
+		EngineInterface engine_interface = new EngineInterface();
+		CPUTypes   type = CPUTypes.FLOAT;
+		int        size = type.sizeInBytes();
+
+
+		InterfaceParam  N    = engine_interface.addParam("N", CPUTypes.INT);
+
+		engine_interface.setScalar(s_kernelName, "N", N);
+		InterfaceParam  m    = engine_interface.addParam("m", CPUTypes.FLOAT);
+		engine_interface.setScalar(s_kernelName, "m", m);
+		InterfaceParam  Ns    = engine_interface.addParam("Ns", CPUTypes.INT);
+
+		engine_interface.setTicks(s_kernelName, Ns);
+		engine_interface.setStream("probx",   type, Ns * size);
+		engine_interface.setStream("proby",   type, Ns/N * size);
+		engine_interface.setStream("proby2",   type, Ns/N * size);
+		engine_interface.setStream("proby3",   type, Ns/N * size);
+
+		engine_interface.setStream("probx_y",   type, Ns * size);
+		engine_interface.setStream("s", type, Ns * size);
+
+		engine_interface.setStream("probx_y2",   type, Ns * size);
+		engine_interface.setStream("probx_y3",   type,Ns* size);
+
+		return engine_interface;
+	}
+
+	private void configBuild(MutualInformationEngineParameters params) {
+		BuildConfig buildConfig = getBuildConfig();
+		buildConfig.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
+		buildConfig.setMPPRParallelism(params.getMPPRThreads());
+		buildConfig.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());
+	}
+
+	public static void main(String[] args) {
+		MutualInformationManager manager = new MutualInformationManager(new MutualInformationEngineParameters(args));
+		manager.build();
+	}
+}
